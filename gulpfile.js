@@ -1,6 +1,7 @@
 // File: Gulpfile.js
 'use strict';
 
+// DESARROLLO
 var gulp    = require('gulp'),
     connect = require('gulp-connect'),
     jshint  = require('gulp-jshint'),
@@ -77,3 +78,62 @@ gulp.task('watch', function() {
 })
 
 gulp.task('default', ['server', 'inject', 'wiredep', 'watch']);
+
+// PRODUCCIÓN
+var templatecache = require('gulp-angular-templatecache'),
+    gulpif    = require('gulp-if'),
+    minifyCss = require('gulp-minify-css'),
+    useref    = require('gulp-useref'),
+    uglify    = require('gulp-uglify'),
+    uncss     = require('gulp-uncss');
+
+// Cacheado de plantillas
+gulp.task('templates', function() {
+  gulp.src('./www/views/**/*.tpl.html')
+    .pipe(templatecache({
+      root: 'views/',
+      module: 'app.templates',
+      standalone: true
+    }))
+    .pipe(gulp.dest('./www/js'));
+});
+
+// Pasamos los archivos minificados y concatenados a /dist
+gulp.task('compress', function() {
+  gulp.src('./www/index.html')
+    .pipe(useref.assets())
+    .pipe(gulpif('*.js', uglify({mangle: false })))
+    .pipe(gulpif('*.css', minifyCss()))
+    .pipe(gulp.dest('./dist'));
+});
+
+// Pasamos el index a /dist
+gulp.task('copy', function() {
+  gulp.src('./www/index.html')
+    .pipe(useref())
+    .pipe(gulp.dest('./dist'));
+});
+
+// Eliminamos los estilos que no se usan
+gulp.task('uncss', function() {
+  gulp.src('./dist/css/style.min.css')
+    .pipe(uncss({
+      html: ['./www/index.html']
+    }))
+    .pipe(gulp.dest('./dist/css'));
+});
+
+gulp.task('build', ['templates', 'compress', 'copy', 'uncss']);
+
+// Servidor de producción
+gulp.task('server-dist', function() {
+  connect.server({
+    root: './dist',
+    hostname: '0.0.0.0',
+    port: 8080,
+    livereload: true,
+    middleware: function(connect, opt) {
+      return [ historyApiFallBack ];
+    }
+  });
+});
